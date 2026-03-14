@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hệ thống Microservices Bookstore</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9;}
+        h1 { color: #333; }
+        .book-card { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .price { color: #e74c3c; font-weight: bold; }
+        .system-status { padding: 10px; background: #d4edda; color: #155724; border-radius: 5px; margin-bottom: 20px;}
+    </style>
+</head>
+<body>
+
+<h1>📚 Cửa hàng Sách Django (API Gateway)</h1>
+
+<div class="system-status">
+    Đang chạy trên cổng <strong>8000</strong>. Lấy dữ liệu sách từ cổng <strong>8002</strong>.
+</div>
+
+<h2>Danh mục sách hiện có:</h2>
+
+<!-- Vòng lặp in danh sách sách lấy được từ view -->
+{% if books %}
+{% for book in books %}
+<div class="book-card">
+    <h3>{{ book.title }}</h3>
+    <p>Tác giả: {{ book.author }}</p>
+    <p>Giá: <span class="price">{{ book.price }} VNĐ</span></p>
+    <p>Kho: {{ book.stock }} cuốn</p>
+    <button>Thêm vào giỏ</button>
+</div>
+{% endfor %}
+{% else %}
+<p style="color: red;">Hiện không có sách nào, hoặc Book Service (cổng 8002) đang tắt!</p>
+{% endif %}
+
+</body>
+</html>
