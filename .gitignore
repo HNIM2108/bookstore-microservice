@@ -1,0 +1,12 @@
+# Bỏ qua tất cả các thư mục môi trường ảo
+venv/
+*/venv/
+
+# Bỏ qua tất cả Database
+db.sqlite3
+*/db.sqlite3
+
+# Bỏ qua file rác của Python và IntelliJ
+__pycache__/
+*.pyc
+.idea/
