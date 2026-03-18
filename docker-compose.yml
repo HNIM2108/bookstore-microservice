@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: bookstore_rabbitmq
+    ports:
+      - "5672:5672"   # Cổng để các service Python gửi/nhận tin nhắn
+      - "15672:15672" # Cổng giao diện Web để bạn vào quản lý
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: 123456

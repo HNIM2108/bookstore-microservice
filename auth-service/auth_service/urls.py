@@ -1,5 +1,5 @@
 """
-URL configuration for api_gateway project.
+URL configuration for auth_service project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.2/topics/http/urls/
@@ -15,16 +15,22 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, re_path
-from app.views import gateway_proxy # Hoặc import từ nơi bạn vừa lưu views.
-from app.views import gateway_proxy, health_check
+from django.urls import path
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('health/', health_check),
-    # Dùng regex để "tóm" tất cả các đường dẫn đằng sau http://localhost:8000/
-    # và nhét nó vào biến 'path' truyền cho hàm gateway_proxy
-    re_path(r'^(?P<path>.*)$', gateway_proxy),
-]
+    # 1. Đường dẫn để đăng nhập và lấy Token
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
 
+    # 2. Đường dẫn để làm mới Token khi bị hết hạn
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    # 3. Đường dẫn MỚI để API Gateway xác thực thẻ (Verify)
+    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+]
