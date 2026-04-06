@@ -28,7 +28,7 @@ def callback(ch, method, properties, body):
 
 # Kết nối RabbitMQ
 credentials = pika.PlainCredentials('admin', '123456')
-parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
 connection = pika.BlockingConnection(parameters)
 channel = connection.channel()
 

@@ -12,7 +12,7 @@ from app.models import Shipment
 def trigger_compensation(order_id):
     try:
         credentials = pika.PlainCredentials('admin', '123456')
-        parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+        parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
 
@@ -50,7 +50,7 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 credentials = pika.PlainCredentials('admin', '123456')
-parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
 connection = pika.BlockingConnection(parameters)
 channel = connection.channel()
 

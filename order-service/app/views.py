@@ -12,7 +12,7 @@ def publish_message(queue_name, message):
         credentials = pika.PlainCredentials('admin', '123456')
 
         # 2. Gắn chìa khóa vào kết nối
-        parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+        parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
         # Kết nối tới RabbitMQ đang chạy trên Docker (localhost:5672)
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()

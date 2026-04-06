@@ -18,13 +18,18 @@ from django.contrib import admin
 from django.urls import path, re_path
 from app.views import gateway_proxy # Hoặc import từ nơi bạn vừa lưu views.
 from app.views import gateway_proxy, health_check
+from app.views import gateway_proxy, health_check, home_view
+from rest_framework_simplejwt.views import TokenVerifyView, TokenRefreshView, TokenObtainPairView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('health/', health_check),
-    # Dùng regex để "tóm" tất cả các đường dẫn đằng sau http://localhost:8000/
-    # và nhét nó vào biến 'path' truyền cho hàm gateway_proxy
+
+    path('', home_view, name='home'),
+
     re_path(r'^(?P<path>.*)$', gateway_proxy),
 ]
 

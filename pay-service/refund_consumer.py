@@ -1,4 +1,6 @@
 import os
+import time
+
 import django
 import pika
 import json
@@ -11,7 +13,7 @@ from app.models import Payment
 def notify_order_status(order_id, status):
     try:
         credentials = pika.PlainCredentials('admin', '123456')
-        parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+        parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
         channel.queue_declare(queue='order_status_queue', durable=True)
@@ -31,6 +33,7 @@ def callback(ch, method, properties, body):
     reason = data.get('reason', '')
 
     print(f"\n⚠️ NHẬN TÍN HIỆU SAGA ROLLBACK CHO ORDER: {order_id}")
+    time.sleep(2)
 
     try:
         payment = Payment.objects.filter(order_id=order_id).first()
@@ -51,7 +54,7 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 credentials = pika.PlainCredentials('admin', '123456')
-parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
 connection = pika.BlockingConnection(parameters)
 channel = connection.channel()
 

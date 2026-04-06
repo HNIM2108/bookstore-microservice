@@ -1,12 +1,186 @@
 version: '3.8'
 
 services:
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: bookstore_rabbitmq
+  # 1. HẠ TẦNG DỮ LIỆU & TIN NHẮN
+  mysql-db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
     ports:
-      - "5672:5672"   # Cổng để các service Python gửi/nhận tin nhắn
-      - "15672:15672" # Cổng giao diện Web để bạn vào quản lý
+      - "3306:3306"
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: 123456
+      MYSQL_ROOT_PASSWORD: 1230
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql # Tự động tạo 13 DB
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=123456
+
+  # 2. CỬA NGÕ GATEWAY (Chứa giao diện ULTRA TECH)
+  api-gateway:
+    build: ./api-gateway
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=api_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql-db
+      - auth-service
+
+  # 3. CÁC SERVICE CHÍNH (Xử lý Saga & Event Bus)
+  auth-service:
+    build: ./auth-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=auth_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    ports:
+      - "8012:8000"
+    depends_on:
+      - mysql-db
+
+  order-service:
+    build: ./order-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=order_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    ports:
+      - "8004:8000"
+    depends_on:
+      - mysql-db
+      - rabbitmq
+
+  # Luồng xử lý ngầm (Consumers)
+  order-consumer:
+    build: ./order-service
+    command: python consumer.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=order_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    depends_on:
+      - mysql-db
+      - rabbitmq
+    restart: on-failure
+
+  pay-service:
+    build: ./pay-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=pay_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    ports:
+      - "8005:8000"
+    depends_on:
+      - mysql-db
+      - rabbitmq
+
+  pay-consumer:
+    build: ./pay-service
+    command: python consumer.py
+    environment: &pay-env
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=pay_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    depends_on: [mysql-db, rabbitmq]
+    restart: on-failure
+
+  pay-refund-consumer:
+    build: ./pay-service
+    command: python refund_consumer.py
+    environment: *pay-env
+    depends_on: [mysql-db, rabbitmq]
+    restart: on-failure
+
+  ship-service:
+    build: ./ship-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=ship_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    ports:
+      - "8006:8000"
+    depends_on: [mysql-db, rabbitmq]
+
+  ship-consumer:
+    build: ./ship-service
+    command: python consumer.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=ship_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    depends_on: [mysql-db, rabbitmq]
+    restart: on-failure
+
+  # 4. CÁC SERVICE VỆ TINH CÒN LẠI
+  book-service:
+    build: ./book-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=book_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8002:8000"]
+    depends_on: [mysql-db]
+
+  cart-service:
+    build: ./cart-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=cart_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8003:8000"]
+    depends_on: [mysql-db]
+
+  customer-service:
+    build: ./customer-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=customer_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8001:8000"]
+    depends_on: [mysql-db]
+
+  catalog-service:
+    build: ./catalog-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=catalog_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8007:8000"]
+    depends_on: [mysql-db]
+
+  comment-rate-service:
+    build: ./comment-rate-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=comment_rate_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8008:8000"]
+    depends_on: [mysql-db]
+
+  manager-service:
+    build: ./manager-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=manager_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8009:8000"]
+    depends_on: [mysql-db]
+
+  recommender-ai-service:
+    build: ./recommender-ai-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=recommender_ai_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8010:8000"]
+    depends_on: [mysql-db]
+
+  staff-service:
+    build: ./staff-service
+    environment: [PYTHONUNBUFFERED=1, DB_NAME=staff_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
+    ports: ["8011:8000"]
+    depends_on: [mysql-db]

@@ -3,15 +3,24 @@ import time
 import requests
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import render
 
-# 1. Cấu hình Routing (Điều hướng)
+
+
+def home_view(request):
+    # Hàm này đơn giản là bốc file index.html ném ra màn hình
+    return render(request, 'index.html')
+
+
+# 1. Trỏ vào tên container và cổng nội bộ 8000
 SERVICES = {
-    'books': 'http://localhost:8002/books/',
-    'orders': 'http://localhost:8004/orders/',
+    'books': 'http://book-service:8000/books/',
+    'orders': 'http://order-service:8000/orders/',
+    # (Nếu bạn gọi các service khác thì cứ thêm vào đây theo công thức: 'http://tên-thư-mục:8000/đường-dẫn/')
 }
 
-# Địa chỉ trạm kiểm định Token (Auth Service cổng 8012)
-AUTH_VERIFY_URL = 'http://localhost:8012/api/token/verify/'
+# 2. Sửa đường dẫn sang Auth Service
+AUTH_VERIFY_URL = 'http://auth-service:8000/api/token/verify/'
 
 # Biến toàn cục đơn giản để làm Rate Limiting (Giới hạn request)
 IP_TRACKER = {}
