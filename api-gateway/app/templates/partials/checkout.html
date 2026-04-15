@@ -1,0 +1,29 @@
+<div id="checkout-section" class="mt-5" style="display:none;">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="auth-card text-start w-100 m-0">
+                <h3 class="mb-4 fw-bold">🚀 Đặt Hàng Nhanh</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Mã Khách Hàng</label>
+                        <input type="number" id="customer_id" class="form-control" value="1">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Mã Giỏ Hàng</label>
+                        <input type="number" id="cart_id" class="form-control" value="1">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="text-muted small">Tổng Tiền (USD)</label>
+                    <input type="number" id="total_amount" class="form-control" value="0">
+                </div>
+                <div class="mb-4">
+                    <label class="text-muted small">Địa Chỉ Giao Hàng</label>
+                    <input type="text" id="address" class="form-control" value="Hà Nội">
+                </div>
+                <button class="btn btn-primary w-100" onclick="createOrder()">Xác nhận đặt hàng</button>
+                <button class="btn btn-link w-100 text-muted mt-3 text-decoration-none small" onclick="logout()">Đăng xuất tài khoản</button>
+            </div>
+        </div>
+    </div>
+</div>

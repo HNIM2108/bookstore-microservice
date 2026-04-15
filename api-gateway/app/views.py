@@ -7,6 +7,7 @@ from django.shortcuts import render
 
 
 
+
 def home_view(request):
     # Hàm này đơn giản là bốc file index.html ném ra màn hình
     return render(request, 'index.html')
@@ -16,6 +17,7 @@ def home_view(request):
 SERVICES = {
     'books': 'http://book-service:8000/books/',
     'orders': 'http://order-service:8000/orders/',
+    'customers': 'http://customer-service:8000/customers/',
     # (Nếu bạn gọi các service khác thì cứ thêm vào đây theo công thức: 'http://tên-thư-mục:8000/đường-dẫn/')
 }
 
@@ -101,3 +103,29 @@ def health_check(request):
         "uptime": "100%",
         "message": "Hệ thống đang hoạt động trơn tru!"
     }, status=200)
+
+
+
+def book_detail_view(request, book_id):
+    # 1. Gọi Book Service để lấy thông tin cuốn sách hiện tại
+    # (Đoạn này chắc hẳn bạn đã code từ trước)
+    book_url = f"http://book-service:8000/api/books/{book_id}/"
+    book_data = requests.get(book_url).json()
+
+    # 2. MỚI: Gọi AI Service để lấy sách gợi ý
+    # Chú ý: Dùng thẳng tên 'recommender-ai-service' vì chúng bọc chung mạng Docker
+    ai_url = f"http://recommender-ai-service:8000/api/recommend/{book_id}/"
+    try:
+        # Giới hạn thời gian chờ timeout=3s để nếu AI sập, web phim không bị sập theo
+        response = requests.get(ai_url, timeout=3)
+        recommended_books = response.json() if response.status_code == 200 else []
+    except Exception as e:
+        print(f"Lỗi kết nối AI Service: {e}")
+        recommended_books = [] # Lỗi thì trả về mảng rỗng, web vẫn chạy bình thường
+
+    # 3. Gộp dữ liệu ném ra HTML
+    context = {
+        'book': book_data,
+        'recommended_books': recommended_books
+    }
+    return render(request, 'book_detail.html', context)

@@ -7,3 +7,12 @@ class Customer(models.Model):
 
     def __str__(self):
         return self.name
+    
+class BehaviorLog(models.Model):
+    customer_id = models.IntegerField()
+    book_id = models.IntegerField()
+    action = models.CharField(max_length=50) # Ví dụ: 'view', 'add_to_cart'
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Khách {self.customer_id} - {self.action} - Sách {self.book_id}"

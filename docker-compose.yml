@@ -24,6 +24,8 @@ services:
   # 2. CỬA NGÕ GATEWAY (Chứa giao diện ULTRA TECH)
   api-gateway:
     build: ./api-gateway
+    volumes:
+      - ./api-gateway:/app
     environment:
       - PYTHONUNBUFFERED=1
       - DB_NAME=api_db

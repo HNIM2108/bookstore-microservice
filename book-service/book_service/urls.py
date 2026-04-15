@@ -19,10 +19,12 @@ from django.urls import path
 
 from django.contrib import admin
 from django.urls import path
-from app.views import BookListCreate
+from app.views import BookListCreate, BookDetail
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     # Đường dẫn API cho module Sách
     path('books/', BookListCreate.as_view(), name='book-api'),
+    # API lấy chi tiết 1 cuốn sách theo ID
+    path('books/<int:pk>/', BookDetail.as_view(), name='book-detail-api'),
 ]
