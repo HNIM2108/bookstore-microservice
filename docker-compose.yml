@@ -177,9 +177,12 @@ services:
 
   recommender-ai-service:
     build: ./recommender-ai-service
+    volumes:
+      - ./recommender-ai-service:/app
     environment: [PYTHONUNBUFFERED=1, DB_NAME=recommender_ai_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
     ports: ["8010:8000"]
     depends_on: [mysql-db]
+    command: python manage.py runserver 0.0.0.0:8000 --noreload
 
   staff-service:
     build: ./staff-service

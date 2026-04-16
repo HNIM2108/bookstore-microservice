@@ -164,8 +164,59 @@
                 document.getElementById('detail-stock').innerText = book.stock;
                 document.getElementById('btn-buy-now').onclick = () => selectToBuy(book.price);
                 switchTab('detail');
+                
+                // MỚI: Bắt đầu gọi AI Gợi ý ngay sau khi mở trang
+                fetchAIRecommendations(bookId);
             }
         } catch (e) { console.error("Lỗi:", e); }
+    }
+
+    // Hàm chuyên biệt để gọi AI và vẽ giao diện sách tương đồng
+    async function fetchAIRecommendations(bookId) {
+        const aiContainer = document.getElementById('ai-similar-books');
+        aiContainer.innerHTML = `
+            <div class="col-12 text-muted small" id="ai-loading">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Hệ thống AI đang tính toán khoảng cách Vector...
+            </div>
+        `;
+        
+        try {
+            // Gọi thẳng API RAG ở cổng 8010
+            const response = await fetch(`http://localhost:8010/api/recommend/${bookId}/`);
+            if (!response.ok) throw new Error('Lỗi mạng AI');
+            
+            const recommendedBooks = await response.json();
+            aiContainer.innerHTML = ''; 
+            
+            if (recommendedBooks && recommendedBooks.length > 0) {
+                recommendedBooks.forEach(book => {
+                    const bookCard = `
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 shadow-sm border-0 bg-dark text-light" 
+                                 style="cursor: pointer; transition: transform 0.2s;" 
+                                 onclick="viewBookDetail(${book.id})">
+                                <div class="card-body p-3 d-flex align-items-center">
+                                    <div class="bg-secondary rounded me-3 d-flex align-items-center justify-content-center" style="min-width: 40px; height: 55px; opacity: 0.5;">
+                                        <span>📘</span>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1 fw-bold text-truncate" style="max-width: 150px;">${book.title}</h6>
+                                        <span class="badge bg-success text-light" style="font-size: 0.75rem;">Phân tích bởi FAISS</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    aiContainer.innerHTML += bookCard;
+                });
+            } else {
+                aiContainer.innerHTML = '<div class="col-12 text-muted small fst-italic">Không tìm thấy sách tương đồng.</div>';
+            }
+        } catch (error) {
+            console.error("Lỗi AI Service:", error);
+            aiContainer.innerHTML = '<div class="col-12 text-danger small">Hệ thống AI đang bảo trì.</div>';
+        }
     }
 
     async function simulateAITracking(action, bookId) {

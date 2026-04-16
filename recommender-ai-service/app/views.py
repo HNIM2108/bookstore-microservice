@@ -32,9 +32,11 @@ def recommend_similar_books(request, book_id):
         sim_book = df_meta.iloc[idx]
         if sim_book['id'] != book_id:
             recommended_books.append({
-                "id": sim_book['id'],
-                "title": sim_book['title'],
-                "category": sim_book['category']
+                # Ép kiểu int/str để đề phòng lỗi format JSON của thư viện Numpy
+                "id": int(sim_book['id']), 
+                "title": str(sim_book['title']),
+                # Dùng .get() để chống lỗi KeyError, lấy author hoặc chữ mặc định
+                "category": str(sim_book.get('category', sim_book.get('author', 'Sách liên quan')))
             })
             
     # Trả về tối đa 2 cuốn
