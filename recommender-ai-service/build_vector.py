@@ -1,45 +1,52 @@
+import os
+import requests
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import faiss
-import numpy as np
-import requests
+import pickle
 
-print("⏳ Đang khởi động mô hình NLP...")
-model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+API_URL = 'http://product-service:8000/products/' # Đã đổi sang product
+MODEL_NAME = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
 
-print("🌐 Đang kết nối Book Service lấy dữ liệu thật...")
-try:
-    # Đổi URL: Thử bỏ chữ /api/ đi, chỉ giữ lại /books/
-    url = 'http://book-service:8000/books/'
-    headers = {'Accept': 'application/json'}
-    print(f"🌐 Đang kết nối tới: {url}")
-    response = requests.get(url)
+def build_vector_db():
+    print("🌐 Đang kết nối Product Service lấy dữ liệu...")
+    try:
+        response = requests.get(API_URL)
+        products = response.json()
+    except Exception as e:
+        print(f"❌ Lỗi khi lấy dữ liệu: {e}")
+        return
+
+    if not products:
+        print("⚠️ Không có sản phẩm nào để Vector hóa.")
+        return
+
+    df = pd.DataFrame(products)
+
+    # 🌟 VŨ KHÍ BÍ MẬT Ở ĐÂY: Biến toàn bộ JSON attributes thành chuỗi text
+    # Ví dụ: {'ram': '16GB', 'cpu': 'i7'} -> "{'ram': '16GB', 'cpu': 'i7'}"
+    df['attributes_str'] = df['attributes'].astype(str)
     
-    # Kiểm tra xem Book Service có trả về lỗi 404/500 không
-    if response.status_code != 200:
-        print(f"❌ CẢNH BÁO: Book Service trả về mã lỗi {response.status_code}")
-        print(f"Nội dung phản hồi: {response.text[:200]}") # In ra 200 ký tự HTML lỗi để dễ bắt bệnh
-    else:
-        books = response.json()
-        
-        if not books:
-            print("⚠️ Cảnh báo: Book Service chưa có sách nào!")
-        else:
-            df = pd.DataFrame(books)
-            # Gom các trường văn bản lại để nhúng Vector
-            df['text'] = df['title'].astype(str) + " | " + df.get('author', '').astype(str)
-            
-            print(f"🧠 Đang Vector hóa {len(df)} cuốn sách...")
-            embeddings = model.encode(df['text'].tolist())
+    # Gom Tên sản phẩm + Thuộc tính để đưa cho AI học
+    df['text_to_vectorize'] = df['name'] + " " + df['attributes_str']
 
-            # Nhét vào FAISS
-            index = faiss.IndexFlatL2(embeddings.shape[1])
-            index.add(np.array(embeddings).astype('float32'))
+    print("⏳ Đang tải mô hình NLP...")
+    model = SentenceTransformer(MODEL_NAME)
+    
+    print(f"🧠 Đang mã hóa {len(df)} sản phẩm thành Vector...")
+    embeddings = model.encode(df['text_to_vectorize'].tolist())
 
-            # Lưu lại
-            faiss.write_index(index, 'book_index.bin')
-            df.to_pickle('book_metadata.pkl')
+    # Tạo FAISS Index
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
 
-            print("✅ Đã cập nhật Vector Index với dữ liệu THẬT từ Database!")
-except Exception as e:
-    print(f"❌ Lỗi hệ thống: {e}")
+    # Lưu lại
+    faiss.write_index(index, 'product_index.bin') # Đổi tên file
+    with open('product_metadata.pkl', 'wb') as f: # Đổi tên file
+        pickle.dump(df, f)
+
+    print("✅ Đã cập nhật Vector Index cho Sản Phẩm thành công!")
+
+if __name__ == "__main__":
+    build_vector_db()

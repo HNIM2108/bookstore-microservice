@@ -18,6 +18,7 @@ SERVICES = {
     'books': 'http://book-service:8000/books/',
     'orders': 'http://order-service:8000/orders/',
     'customers': 'http://customer-service:8000/customers/',
+    'products': 'http://product-service:8000/products/',
     # (Nếu bạn gọi các service khác thì cứ thêm vào đây theo công thức: 'http://tên-thư-mục:8000/đường-dẫn/')
 }
 

@@ -10,3 +10,24 @@ db.sqlite3
 __pycache__/
 *.pyc
 .idea/
+
+# Bỏ qua dữ liệu thô của Database
+mysql_data/
+neo4j_data/
+redis_data/
+
+# Bỏ qua môi trường ảo và bộ nhớ đệm Python
+__pycache__/
+*.pyc
+venv/
+env/
+
+# Bỏ qua file cấu hình chứa mật khẩu
+.env
+
+# Bỏ qua dữ liệu mô hình Ollama
+ollama_data/
+
+# Bỏ qua các file từ điển AI (FAISS, Pickle)
+*.bin
+*.pkl

@@ -1,111 +1,39 @@
 <div id="detail-section" class="mt-4" style="display:none;">
-    <button class="btn btn-outline-secondary mb-4 btn-sm" onclick="switchTab('store')">← Quay lại cửa hàng</button>
+    <button class="btn btn-outline-secondary mb-4 btn-sm" onclick="switchTab('store')">← Quay lại gian hàng</button>
     <div class="row">
         <div class="col-md-4 mb-4">
             <div class="bg-secondary rounded-4 d-flex align-items-center justify-content-center" style="height: 400px; opacity: 0.2; border: 1px solid #475569;">
-                <span class="fs-1">📖</span>
+                <span class="fs-1" id="detail-icon">📦</span>
             </div>
         </div>
         
         <div class="col-md-8">
-            <h1 class="fw-bold" id="detail-title">Đang tải tên sách...</h1>
-            <h4 class="text-muted mb-3" id="detail-author">Đang tải tác giả...</h4>
+            <h1 class="fw-bold mb-2" id="detail-title">Đang tải tên sản phẩm...</h1>
+            
+            <div id="detail-attributes" class="mb-4 mt-3 d-flex flex-wrap gap-1">
+                </div>
+            
             <h2 class="text-success fw-bold mb-4" id="detail-price">$0.00</h2>
             <p class="text-light" style="line-height: 1.8;">
-                Đây là một cuốn sách tuyệt vời mà bạn không thể bỏ qua. Số lượng còn lại trong kho: <strong id="detail-stock" class="text-warning">0</strong> cuốn.
+                Sản phẩm cao cấp đang có sẵn. Số lượng còn lại trong kho: <strong id="detail-stock" class="text-warning">0</strong>.
             </p>
             
             <div class="d-flex gap-3 my-4">
                 <button class="btn btn-primary btn-lg px-4" id="btn-buy-now">💳 Mua Ngay</button>
-                <button class="btn btn-outline-warning btn-lg px-4" onclick="alert('Tính năng đánh giá sẽ kết nối với Comment Rate Service sau!')">⭐ Đánh giá</button>
+                <button class="btn btn-outline-warning btn-lg px-4" onclick="alert('Tính năng đánh giá đang bảo trì!')">⭐ Đánh giá</button>
             </div>
             
             <div class="mt-5 p-4 rounded-4" style="background: rgba(99, 102, 241, 0.05); border: 1px dashed #6366f1;">
-                <h5 class="fw-bold mb-3" style="color: #818cf8;">🤖 AI Gợi ý: Thường được mua kèm</h5>
-                
+                <h5 class="fw-bold mb-3" style="color: #818cf8;">🤖 AI phân tích cấu hình: Sản phẩm tương tự</h5>
                 <div class="row" id="ai-similar-books">
-                    <div class="col-12 text-muted small" id="ai-loading">
-                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                        Mô hình Deep Learning đang phân tích ngữ nghĩa...
                     </div>
-                </div>
+            </div>
+
+            <div class="mt-4 p-4 rounded-4" style="background: rgba(16, 185, 129, 0.05); border: 1px dashed #10b981;">
+                <h5 class="fw-bold mb-3" style="color: #34d399;">🕸️ Graph AI: Khách hàng mua sản phẩm này cũng mua</h5>
+                <div class="row" id="graph-similar-books">
+                    </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-    /**
-     * Hàm này được gọi khi người dùng bấm vào xem 1 cuốn sách bất kỳ.
-     * @param {number} bookId - ID của cuốn sách đang xem
-     */
-    async function loadBookDetail(bookId) {
-        // 1. Hiển thị khu vực chi tiết 
-        document.getElementById('detail-section').style.display = 'block';
-        
-        // 2. Tải thông tin cơ bản của sách (Giả lập)
-        document.getElementById('detail-title').innerText = "Cuốn sách ID: " + bookId; 
-        document.getElementById('detail-author').innerText = "Tác giả Demo";
-        document.getElementById('detail-price').innerText = "$19.99";
-        document.getElementById('detail-stock').innerText = "15";
-
-        // 3. TẢI DỮ LIỆU TỪ AI SERVICE (RAG/Vector)
-        const aiContainer = document.getElementById('ai-similar-books');
-        
-        // Hiển thị lại vòng quay loading
-        aiContainer.innerHTML = `
-            <div class="col-12 text-muted small" id="ai-loading">
-                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                Hệ thống AI đang tính toán khoảng cách Vector...
-            </div>
-        `;
-
-        try {
-            // Gọi thẳng vào API Gateway (hoặc AI Service) ở cổng 8010
-            const response = await fetch(`http://localhost:8010/ai/recommend/${bookId}/`);
-            
-            if (!response.ok) {
-                throw new Error('Lỗi mạng hoặc sách chưa được Vector hóa');
-            }
-            
-            const data = await response.json();
-            const recommendedBooks = data.recommendations;
-            
-            // Xóa vòng quay loading
-            aiContainer.innerHTML = ''; 
-
-            // Nếu AI tìm thấy sách giống nhau
-            if (recommendedBooks && recommendedBooks.length > 0) {
-                recommendedBooks.forEach(book => {
-                    // ĐÃ SỬA: Dùng book.book_id và book.reason cho khớp với JSON trả về
-                    const bookCard = `
-                        <div class="col-md-6 mb-3">
-                            <div class="card h-100 shadow-sm border-0 bg-dark text-light" 
-                                 style="cursor: pointer; transition: transform 0.2s;" 
-                                 onmouseover="this.style.transform='scale(1.03)'" 
-                                 onmouseout="this.style.transform='scale(1)'" 
-                                 onclick="loadBookDetail(${book.book_id})">
-                                <div class="card-body p-3 d-flex align-items-center">
-                                    <div class="bg-secondary rounded me-3 d-flex align-items-center justify-content-center" style="min-width: 40px; height: 55px; opacity: 0.5;">
-                                        <span>📘</span>
-                                    </div>
-                                    <div>
-                                        <h6 class="mb-1 fw-bold text-truncate" style="max-width: 150px;">Sách ID: ${book.book_id}</h6>
-                                        <span class="badge bg-success text-light" style="font-size: 0.75rem; white-space: normal; text-align: left;">${book.reason}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    aiContainer.innerHTML += bookCard;
-                });
-            } else {
-                aiContainer.innerHTML = '<div class="col-12 text-muted small fst-italic">Hiện tại chưa có gợi ý ngữ nghĩa phù hợp cho cuốn sách này.</div>';
-            }
-            
-        } catch (error) {
-            console.error("Lỗi AI Service:", error);
-            aiContainer.innerHTML = '<div class="col-12 text-danger small">Hệ thống AI gợi ý đang bảo trì. Vui lòng thử lại sau.</div>';
-        }
-    }
-</script>

@@ -11,6 +11,38 @@ services:
       MYSQL_ROOT_PASSWORD: 1230
     volumes:
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql # Tự động tạo 13 DB
+      - ./mysql_data:/var/lib/mysql
+
+  neo4j-db:
+    image: neo4j:latest
+    environment:
+      # Cấu hình tài khoản mặc định (user: neo4j / pass: 12345678)
+      - NEO4J_AUTH=neo4j/12345678
+      - NEO4J_server_memory_heap_initial__size=100m
+      - NEO4J_server_memory_heap_max__size=250m
+      - NEO4J_server_memory_pagecache_size=100m
+    ports:
+      - "7474:7474"  # Cổng để bạn xem giao diện Web (Graph Browser)
+      - "7687:7687"  # Cổng Bolt để code Python kết nối ngầm
+    volumes:
+      - ./neo4j_data:/data  # Lưu dữ liệu đồ thị ra ngoài máy thật để không bị mất
+
+  # ollama-service:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ./ollama_data:/root/.ollama
+  #   # Thiết lập biến môi trường để các service khác có thể gọi được API của Ollama
+  #   environment:
+  #     - OLLAMA_HOST=0.0.0.0
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -189,3 +221,18 @@ services:
     environment: [PYTHONUNBUFFERED=1, DB_NAME=staff_db, DB_USER=root, DB_PASSWORD=1230, DB_HOST=mysql-db]
     ports: ["8011:8000"]
     depends_on: [mysql-db]
+
+  product-service:
+    build: ./product-service
+    volumes:
+      - ./product-service:/app  # Ánh xạ code để sửa lỗi chạy luôn
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=product_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    ports:
+      - "8013:8000"
+    depends_on:
+      - mysql-db
