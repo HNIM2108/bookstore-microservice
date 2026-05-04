@@ -23,7 +23,7 @@ SERVICES = {
 }
 
 # 2. Sửa đường dẫn sang Auth Service
-AUTH_VERIFY_URL = 'http://auth-service:8000/api/token/verify/'
+AUTH_VERIFY_URL = 'http://user-service:8000/api/token/verify/'
 
 # Biến toàn cục đơn giản để làm Rate Limiting (Giới hạn request)
 IP_TRACKER = {}

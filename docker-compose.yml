@@ -70,17 +70,34 @@ services:
   #     - mysql-db
   #     - user-service
 
-  # 2. CỬA NGÕ GATEWAY (Nginx)
+  # 2. CỬA NGÕ GIAO DIỆN (Django BFF - Trả về HTML cũ của bạn)
   api-gateway:
+    build: ./api-gateway
+    volumes:
+      - ./api-gateway:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_NAME=api_db
+      - DB_USER=root
+      - DB_PASSWORD=1230
+      - DB_HOST=mysql-db
+    # LƯU Ý: XÓA phần "ports: - 8000:8000" ở đây để nhường cổng cho Nginx
+    depends_on:
+      - mysql-db
+      - user-service
+
+  # CẢNH SÁT GIAO THÔNG (Nginx)
+  nginx-proxy:
     image: nginx:latest
     ports:
-      - "8000:80"  # Phơi cổng 8000 ra cho Postman/Frontend gọi
+      - "8000:80"  # Postman và Trình duyệt sẽ gọi vào đây
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro  # Map file cấu hình vào trong Nginx
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
+      - api-gateway
       - user-service
-      - cart-service
       - product-service
+      - cart-service
       - order-service
 
   # 3. CÁC SERVICE CHÍNH (Xử lý Saga & Event Bus)
