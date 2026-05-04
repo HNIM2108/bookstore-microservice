@@ -1,10 +1,12 @@
 from django.db import models
 
-# Bước 7.5.2: Định nghĩa bảng Cart và CartItem
-class Cart(models.Model):
-    customer_id = models.IntegerField()
-
 class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
-    book_id = models.IntegerField()
-    quantity = models.IntegerField()
+    # CHÚ Ý: Dùng IntegerField, tuyệt đối không dùng ForeignKey
+    user_id = models.IntegerField(help_text="ID của khách hàng từ User Service")
+    product_id = models.IntegerField(help_text="ID của sản phẩm từ Product Service")
+    
+    quantity = models.PositiveIntegerField(default=1)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"User {self.user_id} - Product {self.product_id} (x{self.quantity})"

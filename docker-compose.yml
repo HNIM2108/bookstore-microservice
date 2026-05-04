@@ -54,28 +54,41 @@ services:
       - RABBITMQ_DEFAULT_PASS=123456
 
   # 2. CỬA NGÕ GATEWAY (Chứa giao diện ULTRA TECH)
+  # api-gateway:
+  #   build: ./api-gateway
+  #   volumes:
+  #     - ./api-gateway:/app
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - DB_NAME=api_db
+  #     - DB_USER=root
+  #     - DB_PASSWORD=1230
+  #     - DB_HOST=mysql-db
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - mysql-db
+  #     - user-service
+
+  # 2. CỬA NGÕ GATEWAY (Nginx)
   api-gateway:
-    build: ./api-gateway
-    volumes:
-      - ./api-gateway:/app
-    environment:
-      - PYTHONUNBUFFERED=1
-      - DB_NAME=api_db
-      - DB_USER=root
-      - DB_PASSWORD=1230
-      - DB_HOST=mysql-db
+    image: nginx:latest
     ports:
-      - "8000:8000"
+      - "8000:80"  # Phơi cổng 8000 ra cho Postman/Frontend gọi
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro  # Map file cấu hình vào trong Nginx
     depends_on:
-      - mysql-db
-      - auth-service
+      - user-service
+      - cart-service
+      - product-service
+      - order-service
 
   # 3. CÁC SERVICE CHÍNH (Xử lý Saga & Event Bus)
-  auth-service:
-    build: ./auth-service
+  user-service:
+    build: ./user-service
     environment:
       - PYTHONUNBUFFERED=1
-      - DB_NAME=auth_db
+      - DB_NAME=user_db
       - DB_USER=root
       - DB_PASSWORD=1230
       - DB_HOST=mysql-db

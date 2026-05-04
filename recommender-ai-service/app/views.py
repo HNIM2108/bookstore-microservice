@@ -104,6 +104,7 @@ def graph_recommendations(request, product_id):
 # OLLAMA_API_URL = "http://ollama-service:11434/api/generate"
 OLLAMA_API_URL = "http://host.docker.internal:11434/api/generate"
 
+
 @api_view(['POST'])
 def chat_with_bot(request):
     user_message = request.data.get('message', '')
@@ -112,11 +113,36 @@ def chat_with_bot(request):
     if not user_message:
         return Response({"error": "Vui lòng nhập tin nhắn"}, status=400)
 
-    # 1. RETRIEVAL (Truy xuất tri thức từ Knowledge Graph)
-    context = ""
+    context_str = ""
+
+    # ==========================================
+    # 1. TÌM KIẾM NGỮ NGHĨA (FAISS) TỪ CÂU HỎI
+    # ==========================================
+    try:
+        if index is not None and df_meta is not None:
+            # Biến câu hỏi của khách thành Vector
+            query_vector = model.encode([user_message])
+            # Tìm 3 sản phẩm khớp nhất trong kho
+            distances, indices = index.search(query_vector, 3)
+            
+            found_products = []
+            for idx in indices[0]:
+                sim_product = df_meta.iloc[idx]
+                brand = sim_product.get('attributes', {}).get('brand', 'Không rõ')
+                found_products.append(f"{sim_product['name']} (Hãng: {brand}, Giá: ${sim_product['price']})")
+            
+            if found_products:
+                context_str += f"\n- Sản phẩm trong kho khớp với yêu cầu: {', '.join(found_products)}."
+    except Exception as e:
+        print("Lỗi FAISS trong chat:", e)
+
+    # ==========================================
+    # 2. GỢI Ý MUA KÈM TỪ ĐỒ THỊ (NEO4J)
+    # ==========================================
     if product_id:
         query = """
         MATCH (p:Product {id: $prod_id})<-[:BOUGHT|ADDED_TO_CART]-(u:User)-[:BOUGHT|ADDED_TO_CART]->(other:Product)
+        WHERE other.name IS NOT NULL
         RETURN other.name AS name, count(*) AS score
         ORDER BY score DESC LIMIT 3
         """
@@ -125,24 +151,27 @@ def chat_with_bot(request):
                 result = session.run(query, prod_id=int(product_id))
                 recs = [str(record["name"]) for record in result if record["name"] is not None]
                 if recs:
-                    context = f"Thông tin nội bộ: Khách hàng đang xem sản phẩm ID {product_id}. Lịch sử hệ thống cho thấy những khách hàng khác xem sản phẩm này rất hay mua kèm các món sau: {', '.join(recs)}."
+                    context_str += f"\n- Khách đang xem ID {product_id}, hãy gợi ý mua kèm: {', '.join(recs)}."
         except Exception as e:
             print("Lỗi Neo4j:", e)
 
-    # 2. AUGMENTATION (Tăng cường ngữ cảnh vào Prompt)
-    prompt = f"""Bạn là ULTRA AI, một trợ lý bán hàng lịch sự, chuyên nghiệp của hệ thống Ultra Tech.
-    Quy tắc:
-    - Trả lời bằng tiếng Việt, thân thiện và ngắn gọn.
-    - {context}
-    - Dựa vào Thông tin nội bộ (nếu có), hãy tư vấn chéo (cross-sell) một cách khéo léo cho khách hàng. Không cần nói lộ ra là hệ thống bảo thế.
-    
-    Khách hàng nói: "{user_message}"
+    # ==========================================
+    # 3. ÉP KHUÔN PROMPT CHO LLAMA 3.2
+    # ==========================================
+    prompt = f"""Bạn là ULTRA AI, một trợ lý bán hàng chuyên nghiệp của Ultra Tech.
+    Quy tắc TỐI THƯỢNG:
+    1. CHỈ ĐƯỢC tư vấn các sản phẩm có trong "Dữ liệu cửa hàng" dưới đây.
+    2. Nếu Dữ liệu cửa hàng không có sản phẩm khách cần, hãy lịch sự nói rằng cửa hàng hiện không có hoặc đã hết hàng. Tuyệt đối KHÔNG tự bịa ra sản phẩm ngoài.
+    3. Trả lời bằng tiếng Việt, ngắn gọn, thân thiện.
+
+    Dữ liệu cửa hàng: {context_str if context_str else "Không tìm thấy sản phẩm phù hợp."}
+
+    Khách hàng hỏi: "{user_message}"
     ULTRA AI:"""
 
-    # 3. GENERATION (Nhờ Qwen2 sinh văn bản)
     try:
         payload = {
-            "model": "qwen2:0.5b", # Đã chuyển sang model siêu nhẹ
+            "model": "llama3.2",
             "prompt": prompt,
             "stream": False
         }

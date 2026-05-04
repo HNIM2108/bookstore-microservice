@@ -16,10 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from app.views import CreateOrder
+from app.views import CheckoutView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('orders/', CreateOrder.as_view(), name='create-order'),
+    # API chốt đơn thần thánh
+    path('api/orders/checkout/', CheckoutView.as_view(), name='checkout'),
 ]
 

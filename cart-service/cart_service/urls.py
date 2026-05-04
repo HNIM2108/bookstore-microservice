@@ -19,12 +19,13 @@ from django.urls import path
 
 from django.contrib import admin
 from django.urls import path
-from app.views import CartCreate, AddCartItem, ViewCart
+from app.views import CartListView, AddToCartView, RemoveFromCartView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     # Các API của Giỏ hàng
-    path('carts/', CartCreate.as_view(), name='cart-create'),
-    path('cart-items/', AddCartItem.as_view(), name='add-cart-item'),
-    path('carts/<int:customer_id>/', ViewCart.as_view(), name='view-cart'),
+
+    path('api/cart/', CartListView.as_view(), name='cart-list'),
+    path('api/cart/add/', AddToCartView.as_view(), name='cart-add'),
+    path('api/cart/remove/', RemoveFromCartView.as_view(), name='cart-remove'),
 ]

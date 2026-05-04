@@ -21,6 +21,8 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView
 )
+from app.views import UserRegisterView
+from app.views import UserRegisterView, UserProfileView # Thêm UserProfileView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -33,4 +35,8 @@ urlpatterns = [
 
     # 3. Đường dẫn MỚI để API Gateway xác thực thẻ (Verify)
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+
+    path('auth/register/', UserRegisterView.as_view(), name='register'),
+
+    path('api/profile/', UserProfileView.as_view(), name='profile'),
 ]

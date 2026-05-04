@@ -1,55 +1,88 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Cart, CartItem
-from .serializers import CartSerializer, CartItemSerializer
-import requests
+from rest_framework.permissions import IsAuthenticated
+from .authentication import MicroserviceJWTAuthentication
+from .models import CartItem
+from .serializers import CartItemSerializer
 
-BOOK_SERVICE_URL = "http://127.0.0.1:8002/books/"
+# 1. API Xem toàn bộ giỏ hàng
+class CartListView(APIView):
+    authentication_classes = [MicroserviceJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
-class CartCreate(APIView):
-    # Thêm hàm GET để hiển thị danh sách giỏ hàng
     def get(self, request):
-        carts = Cart.objects.all()
-        serializer = CartSerializer(carts, many=True)
-        return Response(serializer.data)
-
-    def post(self, request):
-        serializer = CartSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
-
-class AddCartItem(APIView):
-    # Thêm hàm GET để hiển thị danh sách các sản phẩm trong giỏ
-    def get(self, request):
-        items = CartItem.objects.all()
+        # request.user.id chính là id lấy từ Token đã giải mã
+        items = CartItem.objects.filter(user_id=request.user.id)
         serializer = CartItemSerializer(items, many=True)
-        return Response(serializer.data)
+        return Response({
+            "message": "Lấy giỏ hàng thành công",
+            "total_distinct_items": items.count(),
+            "cart": serializer.data
+        })
+
+# 2. API Thêm vào giỏ (Cộng thì thêm)
+class AddToCartView(APIView):
+    authentication_classes = [MicroserviceJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        book_id = request.data.get("book_id")
+        product_id = request.data.get('product_id')
+        # Lấy số lượng khách muốn thêm, mặc định là 1 nếu không điền
+        qty_to_add = int(request.data.get('quantity', 1))
+
+        if not product_id:
+            return Response({"error": "Thiếu product_id"}, status=400)
+
+        # Tuyệt chiêu get_or_create: Tìm sản phẩm. Nếu chưa có, tạo mới luôn.
+        item, created = CartItem.objects.get_or_create(
+            user_id=request.user.id,
+            product_id=product_id,
+            defaults={'quantity': qty_to_add}
+        )
+
+        # Nếu nó ĐÃ CÓ TỪ TRƯỚC (not created), thì mình CỘNG DỒN
+        if not created:
+            item.quantity += qty_to_add
+            item.save()
+
+        return Response({
+            "message": "Đã thêm vào giỏ hàng", 
+            "product_id": product_id,
+            "current_quantity": item.quantity
+        }, status=200)
+
+# 3. API Bớt khỏi giỏ (Trừ thì bớt, Hết thì xóa)
+class RemoveFromCartView(APIView):
+    authentication_classes = [MicroserviceJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        product_id = request.data.get('product_id')
+        qty_to_remove = int(request.data.get('quantity', 1))
+
+        if not product_id:
+            return Response({"error": "Thiếu product_id"}, status=400)
 
         try:
-            r = requests.get(BOOK_SERVICE_URL)
-            books = r.json()
-            if not any(b["id"] == int(book_id) for b in books):
-                return Response({"error": "Sách không tồn tại trong hệ thống"}, status=404)
-        except requests.exceptions.RequestException:
-            return Response({"error": "Không thể kết nối đến Book Service"}, status=503)
+            # Tìm món hàng trong giỏ của ĐÚNG user này
+            item = CartItem.objects.get(user_id=request.user.id, product_id=product_id)
+            
+            # Thực hiện phép TRỪ
+            item.quantity -= qty_to_remove
 
-        serializer = CartItemSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
+            # Logic chốt chặn: Nếu trừ xong mà bằng 0 hoặc âm, XÓA LUÔN KHỎI DB
+            if item.quantity <= 0:
+                item.delete()
+                return Response({
+                    "message": "Đã xóa hoàn toàn sản phẩm khỏi giỏ hàng do số lượng về 0"
+                }, status=200)
+            
+            # Nếu vẫn còn > 0 thì lưu lại số lượng mới
+            item.save()
+            return Response({
+                "message": "Đã giảm số lượng", 
+                "current_quantity": item.quantity
+            }, status=200)
 
-class ViewCart(APIView):
-    def get(self, request, customer_id):
-        try:
-            cart = Cart.objects.get(customer_id=customer_id)
-            items = CartItem.objects.filter(cart=cart)
-            serializer = CartItemSerializer(items, many=True)
-            return Response(serializer.data)
-        except Cart.DoesNotExist:
-            return Response({"error": "Không tìm thấy Giỏ hàng"}, status=404)
+        except CartItem.DoesNotExist:
+            return Response({"error": "Sản phẩm này không tồn tại trong giỏ của bạn"}, status=404)

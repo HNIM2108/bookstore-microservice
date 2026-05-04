@@ -40,7 +40,15 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'app',
+    'rest_framework_simplejwt',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        # Thay thế JWT mặc định bằng vũ khí vượt rào của bạn
+        'app.authentication.MicroserviceJWTAuthentication',
+    )
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

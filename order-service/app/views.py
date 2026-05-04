@@ -1,71 +1,76 @@
-import pika
-import json
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Order, OrderItem
 from .serializers import OrderSerializer
 
-# Hàm hỗ trợ: Gửi tin nhắn vào RabbitMQ
-def publish_message(queue_name, message):
-    try:
+class CheckoutView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        # 1. Khai báo tài khoản / mật khẩu
-        credentials = pika.PlainCredentials('admin', '123456')
-
-        # 2. Gắn chìa khóa vào kết nối
-        parameters = pika.ConnectionParameters('rabbitmq', 5672, '/', credentials)
-        # Kết nối tới RabbitMQ đang chạy trên Docker (localhost:5672)
-        connection = pika.BlockingConnection(parameters)
-        channel = connection.channel()
-
-        # Đảm bảo hàng đợi (queue) tồn tại. durable=True giúp giữ tin nhắn kể cả khi RabbitMQ khởi động lại
-        channel.queue_declare(queue=queue_name, durable=True)
-
-        # Gửi tin nhắn
-        channel.basic_publish(
-            exchange='',
-            routing_key=queue_name,
-            body=json.dumps(message),
-            properties=pika.BasicProperties(
-                delivery_mode=2,  # Đánh dấu tin nhắn là kiên định (Persistent)
-            ))
-        connection.close()
-    except Exception as e:
-        print(f"LỖI KẾT NỐI RABBITMQ: {e}")
-
-class CreateOrder(APIView):
     def post(self, request):
-        serializer = OrderSerializer(data=request.data)
-        if serializer.is_valid():
-            order = serializer.save()
+        user_id = request.user.id
+        # Lấy Token của khách hàng để "cầm hộ" sang Cart Service
+        token = request.META.get('HTTP_AUTHORIZATION') 
+        headers = {'Authorization': token}
 
-            pay_method = request.data.get("payment_method", "COD")
-            ship_method = request.data.get("shipping_method", "Standard")
-            address = request.data.get("address", "Hà Nội")
+        # --- BƯỚC 1: GỌI CART SERVICE ĐỂ XEM GIỎ HÀNG ---
+        # Gọi tên container 'cart-service' cổng gốc 8000 (cổng bên trong Docker)
+        cart_url = "http://cart-service:8000/api/cart/"
+        try:
+            cart_response = requests.get(cart_url, headers=headers)
+            cart_response.raise_for_status() # Báo lỗi nếu mã không phải 200
+        except requests.exceptions.RequestException:
+            return Response({"error": "Không thể kết nối đến Dịch vụ Giỏ hàng"}, status=500)
 
-            # 1. Tạo gói tin (Payload) cho Thanh toán
-            pay_payload = {
-                "order_id": order.id,
-                "method": pay_method,
-                "amount": str(order.total_amount)
-            }
+        cart_data = cart_response.json().get('cart', [])
+        if not cart_data:
+            return Response({"error": "Giỏ hàng của bạn đang trống, không thể chốt đơn!"}, status=400)
 
-            # 2. Tạo gói tin (Payload) cho Giao hàng
-            ship_payload = {
-                "order_id": order.id,
-                "method": ship_method,
-                "address": address
-            }
+        # --- BƯỚC 2: TẠO VỎ ĐƠN HÀNG TRỐNG ---
+        order = Order.objects.create(user_id=user_id, total_amount=0)
+        total_amount = 0
 
-            print("--- ĐANG BẮN SỰ KIỆN TỚI PAYMENT QUEUE ---")
-            publish_message('payment_queue', pay_payload)
+        # --- BƯỚC 3: QUÉT TỪNG MÓN, CHECK GIÁ VÀ XÓA KHỎI GIỎ ---
+        for item in cart_data:
+            product_id = item['product_id']
+            quantity = item['quantity']
 
-            print("--- ĐANG BẮN SỰ KIỆN TỚI SHIPPING QUEUE ---")
-            publish_message('shipping_queue', ship_payload)
+            # Gọi Product Service lấy giá hiện tại (Không cần token vì kho hàng mở cửa)
+            product_url = f"http://product-service:8000/products/{product_id}/"
+            try:
+                product_response = requests.get(product_url)
+                if product_response.status_code == 200:
+                    product_info = product_response.json()
+                    current_price = product_info['price']
 
-            # Phản hồi ngay lập tức cho khách hàng mà không cần chờ Pay/Ship xử lý xong!
-            return Response({
-                "message": "Đã nhận đơn hàng (Pending)! Hệ thống đang xử lý bất đồng bộ.",
-                "order_id": order.id
-            }, status=201)
+                    # Chụp ảnh giá (Snapshot) và lưu vào Chi tiết hóa đơn
+                    OrderItem.objects.create(
+                        order=order,
+                        product_id=product_id,
+                        quantity=quantity,
+                        price=current_price
+                    )
 
-        return Response(serializer.errors, status=400)
+                    # Cộng dồn tiền vào tổng hóa đơn
+                    total_amount += float(current_price) * quantity
+
+                    # Gửi lệnh sang Cart Service: "Đã mua xong món này, xóa đi!"
+                    remove_url = "http://cart-service:8000/api/cart/remove/"
+                    requests.post(remove_url, headers=headers, json={
+                        "product_id": product_id,
+                        "quantity": quantity
+                    })
+            except requests.exceptions.RequestException:
+                # Nếu không kết nối được kho hàng, tạm bỏ qua món này (hoặc có thể báo lỗi tùy logic)
+                pass
+
+        # --- BƯỚC 4: CẬP NHẬT TỔNG TIỀN VÀ TRẢ VỀ ---
+        order.total_amount = total_amount
+        order.save()
+
+        serializer = OrderSerializer(order)
+        return Response({
+            "message": "🎉 Chốt đơn thành công!",
+            "order": serializer.data
+        }, status=201)
