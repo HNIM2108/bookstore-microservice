@@ -103,6 +103,8 @@ services:
   # 3. CÁC SERVICE CHÍNH (Xử lý Saga & Event Bus)
   user-service:
     build: ./user-service
+    volumes:                      # <-- THÊM DÒNG NÀY
+      - ./user-service:/app
     environment:
       - PYTHONUNBUFFERED=1
       - DB_NAME=user_db

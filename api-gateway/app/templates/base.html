@@ -54,7 +54,7 @@
             <a class="nav-link active" id="nav-store" onclick="switchTab('store')" style="display:none;">Store</a>
             <a class="nav-link" id="nav-cart" onclick="viewCart()" style="display:none;">Cart 🛒</a>
             <a class="nav-link" id="nav-profile" onclick="viewProfile()" style="display:none;">Profile</a>
-            <a class="nav-link" id="nav-checkout" onclick="switchTab('checkout')" style="display:none;">Checkout</a>
+            <a class="nav-link" id="nav-checkout" onclick="logout()" style="display:none;">Logout</a>
             <a class="nav-link active" id="auth-status" href="#">Login</a>
         </div>
     </div>
@@ -98,9 +98,16 @@
     © 2026 Ultra Tech AI E-commerce.
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const GATEWAY_URL = window.location.origin;
     let currentViewingProductId = null; // Biến lưu vết xem khách đang đứng ở trang sản phẩm nào
+    document.addEventListener("DOMContentLoaded", () => {
+        const token = localStorage.getItem('jwt_token');
+        if (token) {
+            showDashboard();
+        }
+    });
 
     function switchTab(tab) {
         document.getElementById('store-section').style.display = tab === 'store' ? 'block' : 'none';
@@ -108,6 +115,10 @@
         document.getElementById('detail-section').style.display = tab === 'detail' ? 'block' : 'none';
         document.getElementById('profile-section').style.display = tab === 'profile' ? 'block' : 'none';
         document.getElementById('cart-section').style.display = tab === 'cart' ? 'block' : 'none';
+        
+        // THÊM: Hỗ trợ bật tab Dashboard
+        const dashboardSec = document.getElementById('dashboard-section');
+        if (dashboardSec) dashboardSec.style.display = tab === 'dashboard' ? 'block' : 'none';
         
         document.getElementById('nav-store').classList.toggle('active', tab === 'store');
         document.getElementById('nav-profile').classList.toggle('active', tab === 'profile');
@@ -117,15 +128,57 @@
         if (tab !== 'detail') currentViewingProductId = null; // Xóa vết nếu rời đi
     }
 
-    function showDashboard() {
+    // ĐÃ SỬA: Bỏ switchTab('store') đi, nhường quyền quyết định cho checkAccessControl
+    async function showDashboard() {
         document.getElementById('login-section').style.display = 'none';
         document.getElementById('auth-status').style.display = 'none';
-        document.getElementById('nav-store').style.display = 'block';
-        document.getElementById('nav-profile').style.display = 'block';
-        document.getElementById('nav-checkout').style.display = 'block';
-        document.getElementById('nav-cart').style.display = 'block';
-        switchTab('store');
-        fetchProducts(); 
+        
+        // Chờ kiểm tra xem là Admin hay Khách hàng
+        await checkAccessControl(); 
+    }
+
+    // ĐÃ SỬA: Hàm kiểm tra quyền và điều hướng rạch ròi
+    async function checkAccessControl() {
+        const token = localStorage.getItem('jwt_token');
+        if (!token) return;
+
+        try {
+            const res = await fetch(`${GATEWAY_URL}/api/users/api/profile/`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error("Token lỗi");
+            
+            const data = await res.json();
+            const user = data.profile;
+            window.currentUserRole = user.role;
+
+            if (user.role === 'admin' || user.role === 'staff') {
+                // 1. Quản trị viên: Chỉ hiện Profile và Logout, giấu Giỏ hàng và Store
+                document.getElementById('nav-store').style.display = 'none';
+                document.getElementById('nav-cart').style.display = 'none';
+                document.getElementById('nav-profile').style.display = 'block';
+                document.getElementById('nav-checkout').style.display = 'block'; // Đang dùng làm nút Logout
+                
+                switchTab('dashboard');
+                loadAdminSection('users'); // Load mặc định tab User khi vừa vào
+                
+                if (user.role === 'staff') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+                }
+            } else {
+                // 2. Khách hàng: Hiện đầy đủ menu mua hàng
+                document.getElementById('nav-store').style.display = 'block';
+                document.getElementById('nav-cart').style.display = 'block';
+                document.getElementById('nav-profile').style.display = 'block';
+                document.getElementById('nav-checkout').style.display = 'block'; // Đang dùng làm nút Logout
+                
+                switchTab('store');
+                fetchProducts();
+            }
+        } catch (e) {
+            console.error("Lỗi xác thực quyền hạn", e);
+            logout(); // Văng ra ngoài nếu token hết hạn
+        }
     }
 
     function viewProfile() {
@@ -133,10 +186,169 @@
         fetchBehaviorHistory(1); 
     }
 
+        // Hàm kiểm tra quyền hạn ngay khi vào trang
+    
+
+    // Hàm tải dữ liệu cho Dashboard
+    async function loadAdminSection(type) {
+        const token = localStorage.getItem('jwt_token');
+        const tableHead = document.getElementById('admin-table-head');
+        const tableBody = document.getElementById('admin-table-body');
+        const title = document.getElementById('admin-title');
+        const adminActions = document.getElementById('admin-actions'); // Bắt thẻ chứa nút
+        
+        if (adminActions) adminActions.innerHTML = ""; // Xóa nút cũ khi chuyển tab
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner-border text-primary"></div></td></tr>';
+
+        let url = "";
+        if (type === 'users') {
+            title.innerText = "👥 Quản lý Người dùng";
+            url = `${GATEWAY_URL}/api/users/auth/register/`; 
+            tableHead.innerHTML = `<tr><th>ID</th><th>Username</th><th>Role</th><th>Email</th><th>Thao tác</th></tr>`;
+        } else if (type === 'products') {
+            title.innerText = "📚 Quản lý Kho hàng";
+            url = `${GATEWAY_URL}/api/products/`; 
+            tableHead.innerHTML = `<tr><th>ID</th><th>Tên sản phẩm</th><th>Giá</th><th>Kho</th><th>Thao tác</th></tr>`;
+            // VẼ NÚT "THÊM MỚI" Ở ĐÂY
+            if (adminActions) {
+                adminActions.innerHTML = `<button class="btn btn-success btn-sm" onclick="openProductModal()">+ Thêm Sản phẩm</button>`;
+            }
+        } else if (type === 'orders') {
+            title.innerText = "📦 Quản lý Đơn hàng";
+            url = `${GATEWAY_URL}/api/orders/`; 
+            tableHead.innerHTML = `<tr><th>Mã Đơn</th><th>User ID</th><th>Tổng tiền</th><th>Trạng thái</th><th>Thao tác</th></tr>`;
+        }
+
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+            const data = await res.json();
+            
+            tableBody.innerHTML = "";
+            const items = data.data || data; 
+
+            items.forEach(item => {
+                if (type === 'users') {
+                    tableBody.innerHTML += `
+                        <tr>
+                            <td>${item.id}</td>
+                            <td>${item.username}</td>
+                            <td><span class="badge bg-info">${item.role}</span></td>
+                            <td>${item.email || 'N/A'}</td>
+                            <td><button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${item.id})">Xóa</button></td>
+                        </tr>`;
+                } else if (type === 'products') {
+                    // ĐÃ SỬA: Bổ sung logic Nút Sửa và Nút Xóa
+                    let safeName = item.name.replace(/'/g, "\\'"); // Lọc dấu nháy đơn tránh lỗi JS
+                    tableBody.innerHTML += `
+                        <tr>
+                            <td>${item.id}</td>
+                            <td>${item.name}</td>
+                            <td class="text-success">$${item.price}</td>
+                            <td>${item.stock}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-warning me-1" onclick="openProductModal(${item.id}, '${safeName}', ${item.price}, ${item.stock}, ${item.category_id || 1})">Sửa</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct(${item.id})">Xóa</button>
+                            </td>
+                        </tr>`;
+                } else if (type === 'orders') {
+                    tableBody.innerHTML += `
+                        <tr>
+                            <td>#${item.id}</td>
+                            <td>${item.user_id}</td>
+                            <td class="text-success fw-bold">$${item.total_amount}</td>
+                            <td><span class="badge bg-warning">${item.status}</span></td>
+                            <td><button class="btn btn-sm btn-outline-info">Chi tiết</button></td>
+                        </tr>`;
+                }
+            });
+        } catch (e) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Lỗi tải dữ liệu. Hãy kiểm tra logs của Gateway.</td></tr>`;
+        }
+    }
+
+    // HÀM MỚI 1: Bật Popup Modal
+    function openProductModal(id = '', name = '', price = '', stock = '', cat = '') {
+        document.getElementById('prod-id').value = id;
+        document.getElementById('prod-name').value = name;
+        document.getElementById('prod-price').value = price;
+        document.getElementById('prod-stock').value = stock;
+        document.getElementById('prod-category').value = cat;
+        
+        document.getElementById('productModalLabel').innerText = id ? "📝 Sửa Sản Phẩm" : "✨ Thêm Sản Phẩm Mới";
+        new bootstrap.Modal(document.getElementById('productModal')).show();
+    }
+
+    // HÀM MỚI 2: Đẩy dữ liệu lưu vào Backend
+    async function saveProduct() {
+        const id = document.getElementById('prod-id').value;
+        const data = {
+            name: document.getElementById('prod-name').value,
+            price: document.getElementById('prod-price').value,
+            stock: document.getElementById('prod-stock').value,
+            category_id: document.getElementById('prod-category').value
+        };
+        const token = localStorage.getItem('jwt_token');
+        const method = id ? 'PUT' : 'POST'; // Có ID thì là Sửa, Không ID là Thêm mới
+        const url = id ? `${GATEWAY_URL}/api/products/${id}/` : `${GATEWAY_URL}/api/products/`;
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                // Đóng Form và tải lại bảng
+                bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+                loadAdminSection('products');
+            } else {
+                alert("Lỗi khi lưu sản phẩm! Có thể bạn đang thiếu quyền Admin ở Product Service.");
+            }
+        } catch (e) { alert("Lỗi kết nối API lưu sản phẩm!"); }
+    }
+
+    // HÀM MỚI 3: Gọi lệnh Xóa
+    async function deleteProduct(id) {
+        if (!confirm("Bạn có chắc chắn muốn xóa sản phẩm này khỏi hệ thống không?")) return;
+        try {
+            const res = await fetch(`${GATEWAY_URL}/api/products/${id}/`, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') }
+            });
+            if (res.ok) {
+                loadAdminSection('products'); // Refresh lại bảng sau khi xóa
+            } else {
+                alert("Bạn không có quyền xóa sản phẩm này.");
+            }
+        } catch (e) { alert("Lỗi kết nối API xóa!"); }
+    }
+
+    async function deleteUser(userId) {
+        if (!confirm("Bạn có chắc chắn muốn xóa người dùng này?")) return;
+        const token = localStorage.getItem('jwt_token');
+        try {
+            const res = await fetch(`${GATEWAY_URL}/api/users/auth/register/`, {
+                method: 'DELETE',
+                headers: { 
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: userId })
+            });
+            if (res.ok) {
+                alert("Đã xóa người dùng thành công!");
+                loadAdminSection('users'); // Tải lại danh sách
+            }
+        } catch (e) { alert("Lỗi khi xóa người dùng."); }
+    }
+
+    // Đừng quên gọi kiểm tra khi load trang
+    document.addEventListener('DOMContentLoaded', checkAccessControl);
+
     function logout() { localStorage.removeItem('jwt_token'); location.reload(); }
 
     async function login() {
-        const res = await fetch(`${GATEWAY_URL}/api/token/`, {
+        const res = await fetch(`${GATEWAY_URL}/api/users/api/token/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: document.getElementById('username').value, password: document.getElementById('password').value })

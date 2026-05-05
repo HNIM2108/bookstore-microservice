@@ -1,0 +1,76 @@
+<div id="dashboard-section" class="mt-4" style="display:none; max-width: 1200px; margin: 0 auto;">
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="auth-card p-3 w-100 m-0 shadow-lg border-primary">
+                <h5 class="fw-bold mb-4 text-gradient">⚙️ Admin Control</h5>
+                <div class="list-group list-group-flush bg-transparent">
+                    <button class="list-group-item list-group-item-action bg-transparent text-light border-secondary" onclick="loadAdminSection('orders')">📦 Quản lý Đơn hàng</button>
+                    <button class="list-group-item list-group-item-action bg-transparent text-light border-secondary admin-only" onclick="loadAdminSection('products')">📚 Quản lý Sản phẩm</button>
+                    <button class="list-group-item list-group-item-action bg-transparent text-light border-secondary admin-only" onclick="loadAdminSection('users')">👥 Quản lý Tài khoản</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="auth-card m-0 w-100 h-100" style="min-height: 500px; max-width: 100%;">
+                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom border-secondary pb-3">
+                    <h3 id="admin-title" class="fw-bold m-0 text-white">Dashboard</h3>
+                    <div id="admin-actions"></div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover border-secondary align-middle">
+                        <thead id="admin-table-head"></thead>
+                        <tbody id="admin-table-body">
+                            <tr><td colspan="5" class="text-center text-muted">Đang tải dữ liệu...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="productModalLabel">Sản phẩm</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="prod-id">
+                
+                <div class="mb-3">
+                    <label class="form-label text-info small fw-bold mb-1">📦 Tên sản phẩm</label>
+                    <input type="text" id="prod-name" class="form-control bg-dark text-white border-secondary" placeholder="Nhập tên sản phẩm...">
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-info small fw-bold mb-1">💰 Giá bán ($)</label>
+                        <input type="number" id="prod-price" class="form-control bg-dark text-white border-secondary" placeholder="0.00">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-info small fw-bold mb-1">📊 Số lượng kho</label>
+                        <input type="number" id="prod-stock" class="form-control bg-dark text-white border-secondary" placeholder="Số lượng hiện có">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label text-info small fw-bold mb-1">📁 ID Danh mục</label>
+                    <input type="number" id="prod-category" class="form-control bg-dark text-white border-secondary" placeholder="1: Laptop, 2: Phone, 3: Book...">
+                </div>
+
+                <div class="text-muted small mt-2">
+                    <hr class="border-secondary">
+                    * Lưu ý: Mọi thay đổi sẽ được cập nhật trực tiếp lên hệ thống.
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" onclick="saveProduct()">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
+</div>
