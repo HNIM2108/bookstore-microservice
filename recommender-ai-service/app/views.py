@@ -215,14 +215,34 @@ from rest_framework.response import Response
 from .models import UserBehavior
 
 # API 1: Hứng dữ liệu khi khách click xem hàng (POST /customers/track/)
+# API 1: Hứng dữ liệu khi khách click xem hàng (POST /customers/track/)
 class TrackBehaviorView(APIView):
     def post(self, request):
         data = request.data
+        customer_id = data.get('customer_id')
+        product_id = data.get('book_id') or data.get('product_id')
+        action = data.get('action')
+
+        # 1. Lưu vào MySQL (Như cũ)
         UserBehavior.objects.create(
-            customer_id=data.get('customer_id'),
-            product_id=data.get('book_id') or data.get('product_id'), # Bắt cả 2 trường hợp
-            action=data.get('action')
+            customer_id=customer_id,
+            product_id=product_id, 
+            action=action
         )
+
+        # 2. VẼ LÊN ĐỒ THỊ NEO4J (THÊM MỚI)
+        # MERGE nghĩa là: Chưa có thì tạo, có rồi thì thôi
+        neo4j_query = """
+        MERGE (u:User {id: $user_id})
+        MERGE (p:Product {id: $prod_id})
+        MERGE (u)-[r:VIEWED]->(p)
+        """
+        try:
+            with neo4j_driver.session() as session:
+                session.run(neo4j_query, user_id=int(customer_id), prod_id=int(product_id))
+        except Exception as e:
+            print("Lỗi đồng bộ Neo4j:", e)
+
         return Response({"message": "Đã ghi nhận hành vi cho AI!"}, status=201)
 
 # API 2: Trả dữ liệu về cho trang Profile (GET /customers/<id>/behavior/)
@@ -238,3 +258,54 @@ class BehaviorHistoryView(APIView):
             } for log in logs
         ]
         return Response(data, status=200)
+    
+@api_view(['GET'])
+def personalized_recommendations(request, customer_id):
+    """
+    Gợi ý Cá nhân hóa: Tìm những User có chung sở thích với customer_id, 
+    xem họ thích gì khác và gợi ý.
+    """
+    query = """
+    // 1. Tìm các sản phẩm mà User này đã xem
+    MATCH (u:User {id: $user_id})-[:VIEWED|BOUGHT]->(p:Product)
+    
+    // 2. Tìm những User KHÁC cũng xem các sản phẩm giống vậy
+    MATCH (p)<-[:VIEWED|BOUGHT]-(other_u:User)
+    
+    // 3. Xem những User kia còn xem thêm sản phẩm nào khác nữa
+    MATCH (other_u)-[:VIEWED|BOUGHT]->(rec_p:Product)
+    
+    // 4. Lọc bỏ những sản phẩm mà User hiện tại đã xem rồi
+    WHERE NOT (u)-[:VIEWED|BOUGHT]->(rec_p) AND rec_p.id IS NOT NULL
+    
+    // 5. Đếm số lần xuất hiện và xếp hạng
+    RETURN rec_p.id AS id, count(*) AS score
+    ORDER BY score DESC LIMIT 4
+    """
+    
+    try:
+        with neo4j_driver.session() as session:
+            result = session.run(query, user_id=int(customer_id))
+            recommendations = []
+            for record in result:
+                prod_id = record["id"]
+                prod_name = f"Sản phẩm #{prod_id}"
+                
+                # Tra cứu tên thật từ file dữ liệu df_meta đã nạp sẵn
+                if df_meta is not None:
+                    try:
+                        matched = df_meta[df_meta['id'] == int(prod_id)]
+                        if not matched.empty:
+                            prod_name = matched.iloc[0]['name']
+                    except Exception:
+                        pass
+
+                recommendations.append({
+                    "id": prod_id,
+                    "name": prod_name,  # Đã có tên thật để gửi đi!
+                    "match_score": record["score"],
+                    "reason": "Dựa trên tệp khách hàng tương đồng"
+                })
+        return Response({"personalized_recs": recommendations})
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

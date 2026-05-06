@@ -193,6 +193,7 @@
         switchTab('profile');
         if (window.currentUserId) {
             fetchBehaviorHistory(window.currentUserId); 
+            fetchPersonalizedRecs(window.currentUserId); // GỌI THÊM HÀM NÀY
         }
     }
 
@@ -408,6 +409,46 @@
             }
         } catch (e) {
             listDiv.innerHTML = '<p class="text-danger text-center mt-4">❌ Lỗi kết nối đến Server AI/Customer.</p>';
+        }
+    }
+
+    async function fetchPersonalizedRecs(customerId) {
+        const container = document.getElementById('personalized-recs-container');
+        try {
+            // Gọi API Cá nhân hóa từ AI Service
+            const res = await fetch(`http://localhost:8010/api/customers/${customerId}/recommendations/`, {
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') }
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                const recs = data.personalized_recs || [];
+                
+                if (recs.length === 0) {
+                    container.innerHTML = '<p class="text-muted text-center w-100 py-3">Hãy xem thêm sản phẩm để AI có thể hiểu bạn hơn!</p>';
+                    return;
+                }
+
+                let html = '';
+                recs.forEach(item => {
+                    // Giả sử chúng ta dùng icon chung, hoặc bạn có thể bổ sung logic lấy icon theo loại
+                    html += `
+                    <div class="col-md-3 mb-3">
+                        <div class="card h-100 bg-dark border-secondary text-light shadow-sm" style="cursor: pointer;" onclick="viewProductDetail(${item.id})">
+                            <div class="card-body p-3">
+                                <div class="bg-secondary rounded mb-2 d-flex align-items-center justify-content-center" style="height: 80px; opacity: 0.3;">
+                                    <span class="fs-2">🎁</span>
+                                </div>
+                                <h6 class="fw-bold text-truncate mb-1" title="${item.name}">${item.name}</h6>
+                                <p class="text-info small mb-0">${item.reason}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            }
+        } catch (e) {
+            container.innerHTML = '<p class="text-danger small text-center w-100">AI Service đang bận phân tích dữ liệu...</p>';
         }
     }
 
