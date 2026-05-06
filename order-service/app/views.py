@@ -105,3 +105,20 @@ class OrderListView(APIView):
 
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=200)
+    
+class UpdateOrderStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, order_id):
+        try:
+            # Chỉ cho phép Admin hoặc Staff đổi trạng thái
+            order = Order.objects.get(id=order_id)
+            new_status = request.data.get('status')
+            
+            if new_status in dict(Order.STATUS_CHOICES):
+                order.status = new_status
+                order.save()
+                return Response({"message": f"Đã chuyển trạng thái đơn #{order_id} sang {new_status}"})
+            return Response({"error": "Trạng thái không hợp lệ"}, status=400)
+        except Order.DoesNotExist:
+            return Response({"error": "Không tìm thấy đơn hàng"}, status=404)

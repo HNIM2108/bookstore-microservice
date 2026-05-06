@@ -225,9 +225,25 @@
                 adminActions.innerHTML = `<button class="btn btn-success btn-sm" onclick="openProductModal()">+ Thêm Sản phẩm</button>`;
             }
         } else if (type === 'orders') {
-            title.innerText = "📦 Quản lý Đơn hàng";
-            url = `${GATEWAY_URL}/api/orders/`; 
-            tableHead.innerHTML = `<tr><th>Mã Đơn</th><th>User ID</th><th>Tổng tiền</th><th>Trạng thái</th><th>Thao tác</th></tr>`;
+            let statusBadge = item.status === 'pending' ? 'bg-secondary' : 
+                                (item.status === 'paid' ? 'bg-info' : 
+                                (item.status === 'shipped' ? 'bg-warning' : 'bg-success'));
+            
+            // Nút bấm động: Nếu Paid thì hiện nút Giao hàng, nếu Shipped thì hiện nút Hoàn thành
+            let nextStatus = item.status === 'paid' ? 'shipped' : (item.status === 'shipped' ? 'completed' : null);
+            let actionBtn = nextStatus ? 
+                `<button class="btn btn-sm btn-success" onclick="updateOrderStatus(${item.id}, '${nextStatus}')">
+                    ${item.status === 'paid' ? '🚀 Giao hàng' : '✅ Hoàn thành'}
+                </button>` : `<small class="text-muted">N/A</small>`;
+
+            tableBody.innerHTML += `
+                <tr>
+                    <td>#${item.id}</td>
+                    <td>User: ${item.user_id}</td>
+                    <td class="text-success fw-bold">$${item.total_amount}</td>
+                    <td><span class="badge ${statusBadge}">${item.status.toUpperCase()}</span></td>
+                    <td>${actionBtn}</td>
+                </tr>`;
         }
 
         try {
@@ -623,48 +639,65 @@
     async function createOrder() {
         const token = localStorage.getItem('jwt_token');
         const address = document.getElementById('address').value;
-        
-        if (!address) { 
-            alert("Vui lòng nhập địa chỉ giao hàng!"); 
-            return; 
-        }
+        if (!address) { alert("Vui lòng nhập địa chỉ giao hàng!"); return; }
 
         const btn = document.getElementById('btn-confirm-checkout');
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang chốt đơn...';
+        
+        // 1. HIỆU ỨNG CHUYỂN HƯỚNG THANH TOÁN (Giả lập VNPay/Momo)
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang kết nối cổng thanh toán...';
         btn.disabled = true;
+        btn.className = "btn btn-warning px-4 fw-bold"; // Đổi màu sang vàng cho giống cổng thanh toán
 
-        try {
-            const res = await fetch(`${GATEWAY_URL}/api/orders/checkout/`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': 'Bearer ' + token 
-                },
-                body: JSON.stringify({ address: address })
-            });
-            const data = await res.json();
-            
-            if (res.ok || res.status === 201) {
-                const realOrderId = data.order_id || data.id || (data.order && data.order.id) || "N/A";
-                const total = data.order ? data.order.total_amount : (data.total_amount || 0);
+        setTimeout(async () => {
+            try {
+                // 2. GỌI API TẠO ĐƠN
+                const res = await fetch(`${GATEWAY_URL}/api/orders/checkout/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ address: address })
+                });
+                const data = await res.json();
                 
-                alert(`🎉 ĐẶT HÀNG THÀNH CÔNG!\nMã đơn: #${realOrderId}\nTổng tiền: $${total}`);
-                
-                // Xóa trống thông tin cũ
-                document.getElementById('address').value = "";
-                
-                // Quay lại cửa hàng và tải lại dữ liệu mới (để cập nhật kho hàng)
-                switchTab('store');
-                fetchProducts();
-            } else {
-                alert("⚠️ Lỗi: " + (data.error || "Không thể tạo đơn hàng."));
+                if (res.ok || res.status === 201) {
+                    const orderId = data.order_id || data.id || (data.order && data.order.id);
+                    
+                    // 3. GIẢ LẬP CẬP NHẬT TRẠNG THÁI "PAID" NGAY LẬP TỨC
+                    await fetch(`${GATEWAY_URL}/api/orders/${orderId}/status/`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                        body: JSON.stringify({ status: 'paid' })
+                    });
+
+                    alert(`✅ THANH TOÁN THÀNH CÔNG!\nĐơn hàng #${orderId} đã được chuyển sang trạng thái: ĐÃ THANH TOÁN.\nChúng tôi sẽ sớm giao hàng cho bạn!`);
+                    
+                    document.getElementById('address').value = "";
+                    switchTab('store');
+                    fetchProducts();
+                }
+            } catch (error) { 
+                alert("Lỗi kết nối hệ thống thanh toán!"); 
+            } finally {
+                btn.innerHTML = 'XÁC NHẬN ĐẶT HÀNG';
+                btn.className = "btn btn-success px-4 fw-bold";
+                btn.disabled = false;
             }
-        } catch (error) { 
-            alert("Hệ thống đặt hàng đang bận, vui lòng thử lại sau!"); 
-        } finally {
-            btn.innerHTML = 'Xác nhận đặt hàng';
-            btn.disabled = false;
-        }
+        }, 1500); // Tạo độ trễ 1.5s để demo tính năng thanh toán
+    }
+
+    async function updateOrderStatus(orderId, nextStatus) {
+        if(!confirm(`Xác nhận chuyển đơn #${orderId} sang trạng thái ${nextStatus.toUpperCase()}?`)) return;
+        
+        try {
+            const res = await fetch(`${GATEWAY_URL}/api/orders/${orderId}/status/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') },
+                body: JSON.stringify({ status: nextStatus })
+            });
+            if (res.ok) {
+                alert("Cập nhật trạng thái thành công!");
+                loadAdminSection('orders'); // Tải lại bảng để thấy thay đổi
+            }
+        } catch (e) { alert("Lỗi cập nhật đơn hàng!"); }
     }
 
     // Ẩn/Hiện Chatbot

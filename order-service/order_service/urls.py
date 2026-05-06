@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from app.views import CheckoutView
+from app.views import CheckoutView, UpdateOrderStatusView
 # from . import views
 from app.views import CheckoutView, OrderListView
 
@@ -26,5 +26,7 @@ urlpatterns = [
     path('api/orders/checkout/', CheckoutView.as_view(), name='checkout'),
 
     path('api/orders/', OrderListView.as_view(), name='order-list'),
+
+    path('api/orders/<int:order_id>/status/', UpdateOrderStatusView.as_view(), name='update-status'),
 ]
 
