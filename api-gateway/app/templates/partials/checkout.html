@@ -1,22 +1,19 @@
-<div id="checkout-section" class="mt-5" style="display:none;">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="auth-card text-start w-100 m-0">
-                <h3 class="mb-4 fw-bold text-gradient">🚀 Xác Nhận Đặt Hàng</h3>
-                <p class="text-muted small mb-4">Hệ thống sẽ tự động tổng hợp giỏ hàng của bạn để lên đơn.</p>
-                
-                <div class="mb-4">
-                    <label class="form-label text-muted small">Địa Chỉ Giao Hàng</label>
-                    <input type="text" id="shipping_address" class="form-control" placeholder="Nhập địa chỉ chi tiết..." value="Hà Nội, Việt Nam">
-                </div>
-                
-                <button class="btn btn-primary w-100 py-2 fs-5" id="btn-confirm-checkout" onclick="createOrder()">
-                    💳 Chốt Đơn Ngay
-                </button>
-                <button class="btn btn-link w-100 text-muted mt-3 text-decoration-none small" onclick="switchTab('store')">
-                    ← Quay lại mua thêm
-                </button>
-            </div>
+<div id="checkout-section" class="mt-4" style="display:none;">
+    <div class="auth-card m-0 w-100" style="max-width: 700px; margin: 40px auto !important;">
+        <h3 class="fw-bold mb-4 text-gradient">🏁 Xác Nhận Đặt Hàng</h3>
+        
+        <div id="checkout-items-summary" class="mb-4 border border-secondary rounded p-3 bg-dark">
+            <p class="text-muted text-center">Đang tải tóm tắt đơn hàng...</p>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small text-info fw-bold">📍 Địa chỉ giao hàng</label>
+            <textarea id="address" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="Nhập địa chỉ nhận hàng..."></textarea>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center border-top border-secondary pt-3">
+            <h5 class="m-0">Thanh toán: <span id="checkout-total" class="text-success fw-bold">$0.00</span></h5>
+            <button id="btn-confirm-checkout" class="btn btn-success px-4 fw-bold" onclick="createOrder()">XÁC NHẬN ĐẶT HÀNG</button>
         </div>
     </div>
 </div>

@@ -14,8 +14,25 @@ NEO4J_USER = "neo4j"
 NEO4J_PASSWORD = "12345678"
 neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-MODEL_NAME = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
-model = SentenceTransformer(MODEL_NAME)
+# MODEL_NAME = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+# model = SentenceTransformer(MODEL_NAME)
+import threading
+
+# Tắt Telemetry để chống nhiễu mạng của Hugging Face
+os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+
+class AIModelManager:
+    _model = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_model(cls):
+        with cls._lock:
+            if cls._model is None:
+                print("🚀 Đang khởi động AI Model từ ổ cứng...")
+                cls._model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+                print("✅ Nạp AI Model thành công!")
+        return cls._model
 
 # Đọc file mới
 INDEX_FILE = 'product_index.bin'
@@ -44,7 +61,13 @@ def recommend_similar_books(request, book_id):
 
         # Vector hóa thuộc tính của sản phẩm hiện tại
         query_text = str(product_row.iloc[0]['name']) + " " + str(product_row.iloc[0]['attributes'])
-        query_vector = model.encode([query_text])
+        # query_vector = model.encode([query_text])
+        # Vector hóa thuộc tính của sản phẩm hiện tại
+        query_text = str(product_row.iloc[0]['name']) + " " + str(product_row.iloc[0]['attributes'])
+        
+        # Lấy model một cách an toàn và encode
+        ai_model = AIModelManager.get_model()
+        query_vector = ai_model.encode([query_text])
 
         # Tìm top 3 sản phẩm giống nhất (tính cả chính nó)
         distances, indices = index.search(query_vector, 3)
@@ -121,7 +144,9 @@ def chat_with_bot(request):
     try:
         if index is not None and df_meta is not None:
             # Biến câu hỏi của khách thành Vector
-            query_vector = model.encode([user_message])
+            # query_vector = model.encode([user_message])
+            ai_model = AIModelManager.get_model()
+            query_vector = ai_model.encode([user_message])
             # Tìm 3 sản phẩm khớp nhất trong kho
             distances, indices = index.search(query_vector, 3)
             
@@ -182,3 +207,34 @@ def chat_with_bot(request):
         return Response({"reply": reply})
     except Exception as e:
         return Response({"error": f"Lỗi gọi LLM: {str(e)}"}, status=500)
+    
+
+    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import UserBehavior
+
+# API 1: Hứng dữ liệu khi khách click xem hàng (POST /customers/track/)
+class TrackBehaviorView(APIView):
+    def post(self, request):
+        data = request.data
+        UserBehavior.objects.create(
+            customer_id=data.get('customer_id'),
+            product_id=data.get('book_id') or data.get('product_id'), # Bắt cả 2 trường hợp
+            action=data.get('action')
+        )
+        return Response({"message": "Đã ghi nhận hành vi cho AI!"}, status=201)
+
+# API 2: Trả dữ liệu về cho trang Profile (GET /customers/<id>/behavior/)
+class BehaviorHistoryView(APIView):
+    def get(self, request, customer_id):
+        # Lấy 10 hành động gần nhất của user này
+        logs = UserBehavior.objects.filter(customer_id=customer_id).order_by('-timestamp')[:10]
+        data = [
+            {
+                "product_id": log.product_id,
+                "action": log.action,
+                "timestamp": log.timestamp
+            } for log in logs
+        ]
+        return Response(data, status=200)

@@ -118,6 +118,8 @@ services:
 
   order-service:
     build: ./order-service
+    volumes:                      # <-- Thêm dòng này
+      - ./order-service:/app
     environment:
       - PYTHONUNBUFFERED=1
       - DB_NAME=order_db

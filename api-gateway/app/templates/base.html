@@ -149,8 +149,16 @@
             if (!res.ok) throw new Error("Token lỗi");
             
             const data = await res.json();
-            const user = data.profile;
+            const user = data.profile || data;
+            // 1. LƯU BIẾN TOÀN CỤC ĐỂ CÁC HÀM KHÁC DÙNG KÉ
             window.currentUserRole = user.role;
+            window.currentUserId = user.id;
+
+            // 2. BƠM DỮ LIỆU VÀO TRANG PROFILE
+            document.getElementById('profile-username').innerText = user.username;
+            document.getElementById('profile-role').innerText = user.role === 'admin' ? 'Quản trị viên hệ thống' : 'Khách hàng VIP';
+            document.getElementById('profile-email').innerText = user.email || 'Chưa cập nhật';
+            document.getElementById('profile-id').innerText = user.id;
 
             if (user.role === 'admin' || user.role === 'staff') {
                 // 1. Quản trị viên: Chỉ hiện Profile và Logout, giấu Giỏ hàng và Store
@@ -183,7 +191,9 @@
 
     function viewProfile() {
         switchTab('profile');
-        fetchBehaviorHistory(1); 
+        if (window.currentUserId) {
+            fetchBehaviorHistory(window.currentUserId); 
+        }
     }
 
         // Hàm kiểm tra quyền hạn ngay khi vào trang
@@ -368,8 +378,9 @@
     }
 
     async function fetchBehaviorHistory(customerId) {
+        const listDiv = document.getElementById('behavior-list');
         try {
-            const res = await fetch(`${GATEWAY_URL}/customers/${customerId}/behavior/`, {
+            const res = await fetch(`http://localhost:8010/api/customers/${customerId}/behavior/`, {
                 headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') }
             });
             if (res.ok) {
@@ -391,9 +402,13 @@
                         </div>`;
                     });
                 }
-                document.getElementById('behavior-list').innerHTML = html;
+                listDiv.innerHTML = html;
+            } else {
+                listDiv.innerHTML = '<p class="text-warning text-center mt-4">⚠️ API Lịch sử chưa sẵn sàng!</p>';
             }
-        } catch (e) {}
+        } catch (e) {
+            listDiv.innerHTML = '<p class="text-danger text-center mt-4">❌ Lỗi kết nối đến Server AI/Customer.</p>';
+        }
     }
 
     function renderProducts(products) {
@@ -524,11 +539,16 @@
 
     async function simulateAITracking(action, productId) {
         console.log(`[AI TRACKING] Event: '${action}' | ProductID: ${productId}`);
+        if (!window.currentUserId) return; // Khách chưa đăng nhập thì không track
         try {
-            await fetch(`${GATEWAY_URL}/customers/track/`, {
+            await fetch(`http://localhost:8010/api/customers/track/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') },
-                body: JSON.stringify({ customer_id: 1, book_id: productId, action: action })
+                body: JSON.stringify({ 
+                    customer_id: window.currentUserId, // ĐÃ SỬA: Lấy ID thật
+                    book_id: productId, 
+                    action: action 
+                })
             });
         } catch (e) {}
         
@@ -562,30 +582,44 @@
     async function createOrder() {
         const token = localStorage.getItem('jwt_token');
         const address = document.getElementById('address').value;
-        if (!address) { alert("Vui lòng nhập địa chỉ giao hàng!"); return; }
+        
+        if (!address) { 
+            alert("Vui lòng nhập địa chỉ giao hàng!"); 
+            return; 
+        }
 
         const btn = document.getElementById('btn-confirm-checkout');
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang chốt đơn...';
         btn.disabled = true;
 
         try {
-            // Nginx bẻ lái vào cổng 8004 của Chốt đơn
             const res = await fetch(`${GATEWAY_URL}/api/orders/checkout/`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': 'Bearer ' + token 
+                },
                 body: JSON.stringify({ address: address })
             });
             const data = await res.json();
             
             if (res.ok || res.status === 201) {
+                const realOrderId = data.order_id || data.id || (data.order && data.order.id) || "N/A";
                 const total = data.order ? data.order.total_amount : (data.total_amount || 0);
-                alert("🎉 CHỐT ĐƠN THÀNH CÔNG!\n" + data.message + "\nTổng thanh toán: $" + total);
+                
+                alert(`🎉 ĐẶT HÀNG THÀNH CÔNG!\nMã đơn: #${realOrderId}\nTổng tiền: $${total}`);
+                
+                // Xóa trống thông tin cũ
+                document.getElementById('address').value = "";
+                
+                // Quay lại cửa hàng và tải lại dữ liệu mới (để cập nhật kho hàng)
                 switchTab('store');
+                fetchProducts();
             } else {
-                alert("⚠️ Lỗi đặt hàng: " + (data.error || "Giỏ hàng trống."));
+                alert("⚠️ Lỗi: " + (data.error || "Không thể tạo đơn hàng."));
             }
         } catch (error) { 
-            alert("Lỗi kết nối đến Dịch vụ Đặt hàng!"); 
+            alert("Hệ thống đặt hàng đang bận, vui lòng thử lại sau!"); 
         } finally {
             btn.innerHTML = 'Xác nhận đặt hàng';
             btn.disabled = false;
@@ -782,6 +816,23 @@
 
     // Nút "Tiến hành thanh toán" ở giỏ hàng sẽ gọi hàm này
     function proceedToCheckout() {
+        // 1. Lấy thông tin từ giỏ hàng hiện tại để hiển thị tóm tắt
+        const cartItems = document.getElementById('cart-items-container').innerHTML;
+        const cartTotal = document.getElementById('cart-total').innerText;
+
+        // 2. Đổ dữ liệu vào trang Checkout
+        const summaryContainer = document.getElementById('checkout-items-summary');
+        const checkoutTotal = document.getElementById('checkout-total');
+        
+        if (summaryContainer && checkoutTotal) {
+            summaryContainer.innerHTML = cartItems; // Hiển thị lại danh sách sản phẩm
+            checkoutTotal.innerText = cartTotal;    // Hiển thị tổng tiền cần trả
+            
+            // Ẩn các nút Xóa/Tăng giảm số lượng ở màn hình xác nhận để tránh làm rối
+            summaryContainer.querySelectorAll('button, .btn-group').forEach(el => el.remove());
+        }
+
+        // 3. Chuyển tab
         switchTab('checkout');
     }
 </script>

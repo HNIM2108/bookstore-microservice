@@ -74,3 +74,34 @@ class CheckoutView(APIView):
             "message": "🎉 Chốt đơn thành công!",
             "order": serializer.data
         }, status=201)
+
+class OrderListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Trích xuất user_id từ token (nhờ cấu hình MicroserviceJWTAuthentication)
+        user_id = request.user.id 
+        
+        # Gọi sang user-service để kiểm tra role của user hiện tại
+        token = request.META.get('HTTP_AUTHORIZATION')
+        user_url = "http://user-service:8000/api/profile/" 
+        
+        is_admin = False
+        try:
+            user_res = requests.get(user_url, headers={'Authorization': token})
+            if user_res.status_code == 200:
+                user_data = user_res.json().get('profile', {})
+                if user_data.get('role') in ['admin', 'staff']:
+                    is_admin = True
+        except requests.exceptions.RequestException:
+            pass # Nếu lỗi kết nối, mặc định chỉ là user thường
+            
+        # Nếu là Admin/Staff: Lấy toàn bộ đơn hàng
+        if is_admin:
+            orders = Order.objects.all().order_by('-created_at')
+        # Nếu là Customer: Chỉ lấy đơn hàng của chính họ
+        else:
+            orders = Order.objects.filter(user_id=user_id).order_by('-created_at')
+
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data, status=200)

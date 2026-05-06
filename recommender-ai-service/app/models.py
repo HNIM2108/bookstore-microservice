@@ -14,3 +14,14 @@ class RecommendBooks(APIView):
             "message": f"Hệ thống AI gợi ý sách cho khách hàng ID: {customer_id}",
             "recommendations": recommendations
         }, status=200)
+    
+from django.db import models
+
+class UserBehavior(models.Model):
+    customer_id = models.IntegerField()
+    product_id = models.IntegerField()  # Mã điện thoại/laptop khách xem
+    action = models.CharField(max_length=50) # VD: 'view_detail', 'add_to_cart'
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"User {self.customer_id} -> {self.action} -> SP {self.product_id}"

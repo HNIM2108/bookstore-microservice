@@ -17,10 +17,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from app.views import CheckoutView
+# from . import views
+from app.views import CheckoutView, OrderListView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     # API chốt đơn thần thánh
     path('api/orders/checkout/', CheckoutView.as_view(), name='checkout'),
+
+    path('api/orders/', OrderListView.as_view(), name='order-list'),
 ]
 
