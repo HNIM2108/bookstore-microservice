@@ -5,7 +5,6 @@ class Product(models.Model):
     category_id = models.IntegerField(null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.IntegerField(default=0)
-    # Đây là "vũ khí bí mật" thay thế cho DDD phức tạp
     attributes = models.JSONField(default=dict) 
 
     class Meta:
